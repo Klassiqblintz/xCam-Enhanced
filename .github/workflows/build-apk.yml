@@ -27,17 +27,16 @@ jobs:
           cache: gradle
 
       - name: Set up Android SDK
-        uses: android/checkout-android-sdk@v1
-        with:
-          cmdline-tools-version: 'nightly'
+        run: |
+          chmod +x gradlew
+          echo "ANDROID_HOME=$ANDROID_HOME" >> $GITHUB_ENV
+          echo "$ANDROID_HOME/cmdline-tools/latest/bin" >> $GITHUB_PATH
+          sdkmanager --list 2>/dev/null || true
 
       - name: Accept licenses and install required SDK components
         run: |
-          sudo $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses < /dev/null
-          sudo $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "platforms;android-37" "build-tools;35.0.0" "platform-tools"
-
-      - name: Grant execute permission for gradlew
-        run: chmod +x gradlew
+          yes | sdkmanager --licenses 2>/dev/null || true
+          sdkmanager "platforms;android-37" "build-tools;35.0.0" 2>/dev/null || true
 
       - name: Build release APK
         run: |
