@@ -26,35 +26,23 @@ jobs:
           distribution: 'temurin'
           cache: gradle
 
-      - name: Install Android SDK
-        uses: android-actions/setup-android@v3
+      - name: Set up Android SDK
+        uses: android/checkout-android-sdk@v1
         with:
-          cmdline-tools-version: "latest"
+          cmdline-tools-version: 'nightly'
 
-      - name: Accept Android SDK licenses
+      - name: Accept licenses and install required SDK components
         run: |
-          yes | sdkmanager --licenses > /dev/null 2>&1 || true
-
-      - name: Install required Android SDK components
-        run: |
-          sdkmanager "platforms;android-37" "build-tools;35.0.0" "platform-tools"
-
-      - name: Set ANDROID_HOME and JAVA_HOME
-        run: |
-          echo "ANDROID_HOME=$ANDROID_HOME" >> $GITHUB_ENV
-          echo "JAVA_HOME=$JAVA_HOME" >> $GITHUB_ENV
+          sudo $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses < /dev/null
+          sudo $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "platforms;android-37" "build-tools;35.0.0" "platform-tools"
 
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
-      - name: Clean build cache
-        run: ./gradlew clean
-
-      - name: Build release APK (no signing if secrets not set)
+      - name: Build release APK
         run: |
           ./gradlew assembleRelease \
             -Dorg.gradle.jvmargs=-Xmx4g \
-            -Porg.gradle.parallel=true \
             --no-daemon
         env:
           APP_VERSION_CODE: "${{ github.run_number }}"
