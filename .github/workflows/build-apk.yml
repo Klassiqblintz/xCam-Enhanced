@@ -26,26 +26,56 @@ jobs:
           distribution: 'temurin'
           cache: gradle
 
+      - name: Install Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          cmdline-tools-version: "latest"
+
+      - name: Accept Android SDK licenses
+        run: |
+          yes | sdkmanager --licenses > /dev/null 2>&1 || true
+
+      - name: Install required Android SDK components
+        run: |
+          sdkmanager "platforms;android-37" "build-tools;35.0.0" "platform-tools"
+
+      - name: Set ANDROID_HOME and JAVA_HOME
+        run: |
+          echo "ANDROID_HOME=$ANDROID_HOME" >> $GITHUB_ENV
+          echo "JAVA_HOME=$JAVA_HOME" >> $GITHUB_ENV
+
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
-      - name: Build release APK
-        run: ./gradlew assembleRelease
+      - name: Clean build cache
+        run: ./gradlew clean
+
+      - name: Build release APK (no signing if secrets not set)
+        run: |
+          ./gradlew assembleRelease \
+            -Dorg.gradle.jvmargs=-Xmx4g \
+            -Porg.gradle.parallel=true \
+            --no-daemon
         env:
           APP_VERSION_CODE: "${{ github.run_number }}"
           APP_VERSION_NAME: "1.0.${{ github.run_number }}"
+          RELEASE_STORE_FILE: "${{ secrets.RELEASE_STORE_FILE }}"
+          RELEASE_STORE_PASSWORD: "${{ secrets.RELEASE_STORE_PASSWORD }}"
+          RELEASE_KEY_ALIAS: "${{ secrets.RELEASE_KEY_ALIAS }}"
+          RELEASE_KEY_PASSWORD: "${{ secrets.RELEASE_KEY_PASSWORD }}"
 
-      - name: Upload APK artifact
+      - name: Upload release APK artifact
+        if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: xcam-enhanced-apk
-          path: app/build/outputs/apk/release/*.apk
+          name: xcam-enhanced-release-apk
+          path: app/build/outputs/apk/release/
           retention-days: 30
 
-      - name: Upload debug APK
+      - name: Upload debug APK artifact
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: xcam-enhanced-debug
-          path: app/build/outputs/apk/debug/*.apk
+          name: xcam-enhanced-debug-apk
+          path: app/build/outputs/apk/debug/
           retention-days: 7
