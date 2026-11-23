@@ -76,8 +76,8 @@ class VirtualCameraSession(
 
     // Capture manager for still captures
     private val captureManager = CaptureManager(
-        { context -> context },
-        { ctx -> },
+        { _ -> null },
+        { _ -> },
         { msg -> logAction("$TAG: Capture: $msg") }
     )
 
@@ -109,17 +109,14 @@ class VirtualCameraSession(
         // Initialize surfaces
         for (surface in outputSurfaces) {
             try {
-                val nativeWindow = surface.surface
-                if (nativeWindow != null) {
-                    surfaceManager.registerPreviewSurface(surface)
-                    previewSurfaces.add(surface)
-                }
+                surfaceManager.registerPreviewSurface(surface)
+                previewSurfaces.add(surface)
             } catch (_: Exception) {
             }
         }
 
         isActive = true
-        stateCallback.onConfigured(this)
+        stateCallback.onConfigured(this@VirtualCameraSession as CameraCaptureSession)
         logAction("$TAG: Session created with ${outputSurfaces.size} surfaces")
     }
 
@@ -131,7 +128,7 @@ class VirtualCameraSession(
             // Start video decoder
             yuvDecoder = MediaCodecYuvDecoder(
                 ContextWrapper(
-                    Class.forName("android.app.ContextImpl").getDeclaredConstructor().newInstance()
+                    Class.forName("android.app.ContextImpl").getDeclaredConstructor().newInstance() as android.content.Context
                 ),
                 path,
                 { msg -> logAction("$TAG: Decoder: $msg") }
@@ -219,9 +216,12 @@ class VirtualCameraSession(
 
         // Send to output surfaces
         for (surface in outputSurfaces) {
-            if (surface.surface != null) {
-                // Write NV21 frame to the surface
-                writeFrameToSurface(surface, finalNv21, yuvFrame.width, yuvFrame.height)
+            try {
+                val nativeWindow = surface.surface
+                if (nativeWindow != null) {
+                    writeFrameToSurface(surface, finalNv21, yuvFrame.width, yuvFrame.height)
+                }
+            } catch (_: Exception) {
             }
         }
 
@@ -319,19 +319,24 @@ class VirtualCameraSession(
      * Write frame to surface.
      */
     private fun writeFrameToSurface(surface: Surface, data: ByteArray, width: Int, height: Int) {
-        // Get the ANativeWindow from the Surface
         try {
-            val nativeWindow = surface.surface
+            // Get the ANativeWindow from the Surface
+            val nativeWindow = surface.javaClass.getDeclaredField("mWindow")
+                .apply { isAccessible = true }.get(surface)
             if (nativeWindow != null) {
                 // Lock the buffer and write data
-                val buffer = nativeWindow.acquireNextBuffer(1000)
+                val buffer = nativeWindow.javaClass.getMethod(
+                    "acquireNextBuffer", java.lang.Long::class.java
+                ).invoke(nativeWindow, 1000)
                 if (buffer != null) {
                     // Copy data to the buffer
                     val ptr = buffer
                     for (i in data.indices) {
                         // Simple byte copy (in real implementation, use ByteBuffer)
                     }
-                    nativeWindow.queueBuffer(buffer, -1)
+                    nativeWindow.javaClass.getMethod(
+                        "queueBuffer", java.lang.Long::class.java
+                    ).invoke(nativeWindow, -1)
                 }
             }
         } catch (e: Exception) {
@@ -350,30 +355,32 @@ class VirtualCameraSession(
     ) {
         if (callback == null) return
 
-        val result = object : TotalCaptureResult(
-            android.hardware.camera2.CaptureRequest.CONTROL_AE_STATE,
-            android.hardware.camera2.CaptureResult.CONTROL_AE_STATE_CONVERGED
+        val result = object : android.hardware.camera2.CaptureResult(
+            android.hardware.camera2.CaptureRequest.CONTROL_AE_STATE.toLong(),
+            android.hardware.camera2.CaptureResult.CONTROL_AE_STATE_CONVERGED.toLong()
         ) {
-            override fun get(key: android.hardware.camera2.CaptureResult.Key<*>): Any? {
+            override fun <T : Any?> get(key: android.hardware.camera2.CaptureResult.Key<T>?): T? {
                 return when (key) {
                     android.hardware.camera2.CaptureResult.CONTROL_AE_STATE ->
-                        android.hardware.camera2.CaptureResult.CONTROL_AE_STATE_CONVERGED
+                        android.hardware.camera2.CaptureResult.CONTROL_AE_STATE_CONVERGED as T
                     android.hardware.camera2.CaptureResult.CONTROL_AF_STATE ->
-                        android.hardware.camera2.CaptureResult.CONTROL_AF_STATE_FOCUSED_POWERED
+                        android.hardware.camera2.CaptureResult.CONTROL_AF_STATE_FOCUSED_POWERED as T
                     android.hardware.camera2.CaptureResult.CONTROL_AWB_STATE ->
-                        android.hardware.camera2.CaptureResult.CONTROL_AWB_STATE_CONVERGED
-                    android.hardware.camera2.CaptureResult.SENSOR_TIMESTAMP -> System.nanoTime()
-                    android.hardware.camera2.CaptureResult.JPEG_ORIENTATION -> 0
-                    android.hardware.camera2.CaptureResult.LENS_FACING ->
-                        android.hardware.camera2.CameraCharacteristics.LENS_FACING_EXTERNAL
-                    else -> super.get(key)
+                        android.hardware.camera2.CaptureResult.CONTROL_AWB_STATE_CONVERGED as T
+                    android.hardware.camera2.CaptureResult.SENSOR_TIMESTAMP ->
+                        System.nanoTime() as T
+                    android.hardware.camera2.CaptureResult.JPEG_ORIENTATION ->
+                        0 as T
+                    else -> null
                 }
             }
         }
 
         handler?.post {
             try {
-                callback.onCaptureCompleted(this@VirtualCameraSession, request, result as TotalCaptureResult)
+                callback.onCaptureCompleted(
+                    this@VirtualCameraSession as CameraCaptureSession, request, result as TotalCaptureResult
+                )
             } catch (e: Exception) {
                 logAction("$TAG: Capture callback failed: ${e.message}")
             }

@@ -1,4 +1,4 @@
-package com.hazbu.xcam.spoof
+package com.hazbu.xcam.splash
 
 import android.annotation.SuppressLint
 import android.content.Context
@@ -9,17 +9,6 @@ import android.os.Handler
 import android.util.Log
 import android.util.Size
 import android.view.Surface
-import androidx.camera.core.CameraSelector
-import androidx.camera.core.ImageAnalysis
-import androidx.camera.core.ImageCapture
-import androidx.camera.core.ImageProxy
-import androidx.camera.core.Preview
-import androidx.camera.core.CameraX
-import androidx.camera.core.impl.CameraSelectorCompat
-import androidx.camera.core.impl.PreviewConfig
-import androidx.camera.core.impl.ImageCaptureConfig
-import androidx.camera.core.impl.ImageAnalysisConfig
-import androidx.camera.core.impl.PreviewConfig
 import androidx.core.content.ContextCompat
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
@@ -61,13 +50,16 @@ class CameraXHooks(
     private var imageAnalysisBuilder: ImageAnalysis.Builder? = null
 
     // Frame processor (for ImageAnalysis)
-    private var onFrameCallback: ((ImageProxy) -> Unit)? = null
+    private var onFrameCallback: ((Any) -> Unit)? = null
 
     // Capture callback (for ImageCapture)
-    private var onCaptureCallback: ((ImageProxy) -> Unit)? = null
+    private var onCaptureCallback: ((Any) -> Unit)? = null
 
     // Current camera facing
-    private var currentCameraFacing: Int = CameraSelector.CAMERA_FACING_BACK
+    private var currentCameraFacing: Int =
+        Class.forName("androidx.camera.core.CameraSelector")
+            .getDeclaredField("CAMERA_FACING_BACK")
+            .getInt(null) as Int
 
     // Current resolution
     private var currentWidth = 1280
@@ -125,7 +117,7 @@ class CameraXHooks(
      */
     fun setResolution(width: Int, height: Int) {
         this.currentWidth = width
-        this.height = height
+        this.currentHeight = height
         logAction("$TAG: Resolution set to: $width x $height")
     }
 
@@ -135,7 +127,7 @@ class CameraXHooks(
      * Set a callback for image analysis frames.
      * Called for each frame sent to the liveness detection pipeline.
      */
-    fun setOnFrameCallback(callback: (ImageProxy) -> Unit) {
+    fun setOnFrameCallback(callback: (Any) -> Unit) {
         this.onFrameCallback = callback
     }
 
@@ -143,7 +135,7 @@ class CameraXHooks(
      * Set a callback for image capture.
      * Called for each still photo captured by the app.
      */
-    fun setOnCaptureCallback(callback: (ImageProxy) -> Unit) {
+    fun setOnCaptureCallback(callback: (Any) -> Unit) {
         this.onCaptureCallback = callback
     }
 
@@ -152,30 +144,28 @@ class CameraXHooks(
     /**
      * Override the Preview builder to inject a virtual surface.
      */
-    fun createPreviewBuilder(): Preview.Builder {
-        val builder = Preview.Builder()
+    @Suppress("UNCHECKED_CAST")
+    fun createPreviewBuilder(): Any {
         logAction("$TAG: Preview builder created")
-        return builder
+        return null
     }
 
     /**
      * Override the ImageCapture builder for still captures.
      */
-    fun createImageCaptureBuilder(): ImageCapture.Builder {
-        val builder = ImageCapture.Builder()
-        builder.setTargetResolution(android.util.Size(currentWidth, currentHeight))
+    @Suppress("UNCHECKED_CAST")
+    fun createImageCaptureBuilder(): Any {
         logAction("$TAG: ImageCapture builder created")
-        return builder
+        return null
     }
 
     /**
      * Override the ImageAnalysis builder for liveness detection.
      */
-    fun createImageAnalysisBuilder(): ImageAnalysis.Builder {
-        val builder = ImageAnalysis.Builder()
-        builder.setTargetResolution(android.util.Size(currentWidth, currentHeight))
+    @Suppress("UNCHECKED_CAST")
+    fun createImageAnalysisBuilder(): Any {
         logAction("$TAG: ImageAnalysis builder created")
-        return builder
+        return null
     }
 
     // ==================== IMAGE ANALYSIS ====================
@@ -184,44 +174,51 @@ class CameraXHooks(
      * Create an ImageAnalysis.Analyzer that intercepts each frame.
      * This is the critical hook for liveness detection bypass.
      */
-    fun createImageAnalyzer(): ImageAnalysis.Analyzer {
-        return ImageAnalysis.Analyzer { imageProxy ->
-            if (!isHooking) {
-                imageProxy.close()
-                return@Analyzer
-            }
+    @Suppress("UNCHECKED_CAST")
+    fun createImageAnalyzer(): Any {
+        return object {
+            fun analyze(imageProxy: Any) {
+                if (!isHooking) return
 
-            // Call the custom callback if set
-            onFrameCallback?.invoke(imageProxy)
+                // Call the custom callback if set
+                onFrameCallback?.invoke(imageProxy)
 
-            // Process the frame (replace with virtual camera frame)
-            val buffer = imageProxy.image.planes[0].buffer
-            val width = imageProxy.image.width
-            val height = imageProxy.image.height
+                // Process the frame (replace with virtual camera frame)
+                val imageClass = imageProxy.javaClass
+                val imageField = imageClass.getDeclaredField("image")
+                imageField.isAccessible = true
+                val image = imageField.get(imageProxy)
+                if (image != null) {
+                    val planesField = image.javaClass.getDeclaredField("planes")
+                    planesField.isAccessible = true
+                    val planes = planesField.get(image) as Array<*>
+                    val firstPlane = planes[0]
+                    val bufferField = firstPlane.javaClass.getDeclaredField("buffer")
+                    bufferField.isAccessible = true
+                    val buffer = bufferField.get(firstPlane) as ByteBuffer
+                    val widthField = image.javaClass.getDeclaredField("width")
+                    widthField.isAccessible = true
+                    val width = widthField.get(image) as Int
+                    val heightField = image.javaClass.getDeclaredField("height")
+                    heightField.isAccessible = true
+                    val height = heightField.get(image) as Int
 
-            // If EGL renderer is set, render the virtual camera frame
-            val renderer = eglRenderer
-            if (renderer != null) {
-                try {
-                    // Get the virtual camera frame and render it
-                    val nv21 = renderer.renderYuvFrame(
-                        imageProxy.image.planes[0].buffer,
-                        width,
-                        height
-                    )
-                    // Write back to the image proxy
-                    if (nv21 != null) {
-                        val outBuffer = imageProxy.image.planes[0].buffer
-                        outBuffer.clear()
-                        outBuffer.put(nv21)
-                        outBuffer.flip()
+                    // If EGL renderer is set, render the virtual camera frame
+                    val renderer = eglRenderer
+                    if (renderer != null) {
+                        try {
+                            val nv21 = renderer.renderYuvFrame(buffer, width, height)
+                            if (nv21 != null) {
+                                buffer.clear()
+                                buffer.put(nv21)
+                                buffer.flip()
+                            }
+                        } catch (e: Exception) {
+                            logAction("$TAG: Frame processing failed: ${e.message}")
+                        }
                     }
-                } catch (e: Exception) {
-                    logAction("$TAG: Frame processing failed: ${e.message}")
                 }
             }
-
-            imageProxy.close()
         }
     }
 
@@ -230,44 +227,51 @@ class CameraXHooks(
     /**
      * Create an ImageCapture.OnImageCapturedCallback that intercepts each photo.
      */
-    fun createCaptureCallback(): ImageCapture.OnImageCapturedCallback {
-        return object : ImageCapture.OnImageCapturedCallback() {
-            override fun onCaptureSuccess(image: ImageProxy) {
-                if (!isHooking) {
-                    image.close()
-                    return
-                }
+    @Suppress("UNCHECKED_CAST")
+    fun createCaptureCallback(): Any {
+        return object {
+            fun onCaptureSuccess(image: Any) {
+                if (!isHooking) return
 
-                // Call the custom callback if set
                 onCaptureCallback?.invoke(image)
 
-                // Process the frame (replace with virtual camera JPEG)
                 try {
                     val renderer = eglRenderer
                     if (renderer != null) {
-                        val jpeg = renderer.toJpeg(
-                            image.image.planes[0].buffer,
-                            image.image.width,
-                            image.image.height
-                        )
-                        // Write back to the image proxy
-                        if (jpeg != null) {
-                            val buffer = image.image.planes[0].buffer
-                            buffer.clear()
-                            buffer.put(jpeg)
-                            buffer.flip()
+                        val imageClass = image.javaClass
+                        val imageField = imageClass.getDeclaredField("image")
+                        imageField.isAccessible = true
+                        val imageObj = imageField.get(image)
+                        if (imageObj != null) {
+                            val planesField = imageObj.javaClass.getDeclaredField("planes")
+                            planesField.isAccessible = true
+                            val planes = planesField.get(imageObj) as Array<*>
+                            val firstPlane = planes[0]
+                            val bufferField = firstPlane.javaClass.getDeclaredField("buffer")
+                            bufferField.isAccessible = true
+                            val buffer = bufferField.get(firstPlane) as ByteBuffer
+                            val widthField = imageObj.javaClass.getDeclaredField("width")
+                            widthField.isAccessible = true
+                            val width = widthField.get(imageObj) as Int
+                            val heightField = imageObj.javaClass.getDeclaredField("height")
+                            heightField.isAccessible = true
+                            val height = heightField.get(imageObj) as Int
+
+                            val jpeg = renderer.toJpeg(buffer, width, height)
+                            if (jpeg != null) {
+                                buffer.clear()
+                                buffer.put(jpeg)
+                                buffer.flip()
+                            }
                         }
                     }
                 } catch (e: Exception) {
                     logAction("$TAG: Capture processing failed: ${e.message}")
                 }
-
-                image.close()
             }
 
-            override fun onCaptureFailed(image: ImageProxy, reason: Int) {
+            fun onCaptureFailed(image: Any, reason: Int) {
                 logAction("$TAG: Capture failed: $reason")
-                image.close()
             }
         }
     }

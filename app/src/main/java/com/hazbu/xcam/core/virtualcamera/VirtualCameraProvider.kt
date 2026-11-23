@@ -67,7 +67,7 @@ class VirtualCameraProvider(
         val context = Class.forName("android.app.ContextImpl")
             .getMethod("getAppContext")
             .invoke(null) as? android.content.Context
-        context?.getSystemService(Context.CAMERA_SERVICE) as? CameraManager
+        context?.getSystemService("camera") as? CameraManager
     } catch (_: Exception) {
         null
     }
@@ -133,8 +133,7 @@ class VirtualCameraProvider(
                     "registerVirtualCamera",
                     java.lang.String::class.java,
                     java.lang.Integer::class.java,
-                    CameraManager::class.java.nestedClasses.find { it.simpleName == "VirtualCameraDevice" }
-                        ?: Class.forName("android.hardware.camera2.CameraManager\$VirtualCameraDevice")
+                    Class.forName("android.hardware.camera2.CameraManager\$VirtualCameraDevice")
                 )
                 registerMethod.invoke(cm, VIRTUAL_CAMERA_ID, VIRTUAL_CAMERA_FACING, virtualCameraDeviceImpl)
 
@@ -281,8 +280,13 @@ class VirtualCameraProvider(
         set(KEY_LOGICAL_MULTI_CAMERA_ACTIVE_PHYSICAL_CAMES, emptyArray())
         set(KEY_INFO_SUPPORTED_NAMED_IMAGES, emptyArray())
 
-        return CameraCharacteristics(VIRTUAL_CAMERA_ID).apply {
-            put(map)
+        return CameraCharacteristics::class.java.getDeclaredConstructor(
+            java.lang.String::class.java
+        ).newInstance(VIRTUAL_CAMERA_ID).apply {
+            val putMethod = javaClass.getMethod("put", Any::class.java, Any::class.java)
+            map.forEach { (key, value) ->
+                putMethod.invoke(this, key, value)
+            }
         }
     }
 
@@ -301,22 +305,30 @@ class VirtualCameraProvider(
             Size(4096, 2160)
         )
 
-        // Input sizes (same as output for virtual camera)
         val inputSizes = arrayOf(
             Size(1920, 1080),
             Size(1280, 720),
             Size(640, 480)
         )
 
-        return StreamConfigurationMap(
-            outputSizes,
-            inputSizes,
-            arrayOf(
-                android.graphics.ImageFormat.YUV_420_888,
-                android.graphics.ImageFormat.NV21,
-                android.graphics.ImageFormat.JPEG
-            ),
-            emptyArray() // No internal formats
+        val outputTypes = arrayOf(
+            android.graphics.ImageFormat.YUV_420_888,
+            android.graphics.ImageFormat.NV21,
+            android.graphics.ImageFormat.JPEG
+        )
+
+        val inputTypes = emptyArray<Int>()
+
+        return StreamConfigurationMap::class.java.getDeclaredConstructor(
+            Array<Size>::class.java,
+            Array<Size>::class.java,
+            Array<Int>::class.java,
+            Array<Int>::class.java
+        ).newInstance(
+            outputSizes as Array<Size>,
+            inputSizes as Array<Size>,
+            outputTypes as Array<Int>,
+            inputTypes as Array<Int>
         )
     }
 

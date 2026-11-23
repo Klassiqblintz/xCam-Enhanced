@@ -140,14 +140,20 @@ class VirtualCameraDevice(
      * Create a capture request for the given template.
      */
     fun createCaptureRequest(template: Int): CaptureRequest.Builder {
-        return CaptureRequest.Builder().apply {
-            // Set default controls
-            set(android.hardware.camera2.CaptureRequest.CONTROL_MODE, 1) // ENABLED
-            set(android.hardware.camera2.CaptureRequest.CONTROL_AF_MODE,
-                android.hardware.camera2.CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE)
-            set(android.hardware.camera2.CaptureRequest.CONTROL_AE_MODE,
-                android.hardware.camera2.CaptureRequest.CONTROL_AE_MODE_ON)
-        }
+        val builder = CaptureRequest.Builder::class.java.getDeclaredConstructor(
+            android.hardware.camera2.CameraDevice::class.java,
+            java.lang.Integer::class.java
+        ).newInstance(this as android.hardware.camera2.CameraDevice, template) as CaptureRequest.Builder
+        builder.set(android.hardware.camera2.CaptureRequest.CONTROL_MODE, 1)
+        builder.set(
+            android.hardware.camera2.CaptureRequest.CONTROL_AF_MODE,
+            android.hardware.camera2.CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE
+        )
+        builder.set(
+            android.hardware.camera2.CaptureRequest.CONTROL_AE_MODE,
+            android.hardware.camera2.CaptureRequest.CONTROL_AE_MODE_ON
+        )
+        return builder
     }
 
     /**
