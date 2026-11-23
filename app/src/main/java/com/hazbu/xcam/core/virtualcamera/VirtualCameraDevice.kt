@@ -140,7 +140,7 @@ class VirtualCameraDevice(
      * Create a capture request for the given template.
      */
     fun createCaptureRequest(template: Int): CaptureRequest.Builder {
-        return CaptureRequest.Builder(template).apply {
+        return CaptureRequest.Builder().apply {
             // Set default controls
             set(android.hardware.camera2.CaptureRequest.CONTROL_MODE, 1) // ENABLED
             set(android.hardware.camera2.CaptureRequest.CONTROL_AF_MODE,
@@ -257,7 +257,7 @@ class VirtualCameraDevice(
                 ?.loadClass("android.content.Context")?.getDeclaredField("CONTEXT_SERVICE")
                 ?.get(null) as? android.content.Context
                 ?: ContextWrapper(
-                    Class.forName("android.app.ContextImpl").getDeclaredConstructor().newInstance()
+                    Class.forName("android.app.ContextImpl").getDeclaredConstructor().newInstance() as android.content.Context
                 ),
             path,
             { msg -> logAction("$TAG: Decoder: $msg") }
@@ -269,7 +269,7 @@ class VirtualCameraDevice(
             val currentApplication = activityThread.getMethod("currentApplication")
                 .invoke(null) as? android.app.Application
             currentApplication ?: ContextWrapper(
-                Class.forName("android.app.ContextImpl").getDeclaredConstructor().newInstance()
+                Class.forName("android.app.ContextImpl").getDeclaredConstructor().newInstance() as android.content.Context
             )
         } catch (_: Exception) {
             ContextWrapper(null)

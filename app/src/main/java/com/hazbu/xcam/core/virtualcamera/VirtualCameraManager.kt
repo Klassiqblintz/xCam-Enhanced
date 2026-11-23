@@ -112,7 +112,7 @@ class VirtualCameraManager(
             isStarted = true
 
             logAction("$TAG: Virtual camera started successfully")
-            logAction("$TAG: Status: ${VirtualCameraProvider({}).getStatus()}")
+            logAction("$TAG: Status: ${provider.getStatus()}")
 
             // Notify listener
             statusListener?.onStatusChanged(true)
@@ -174,7 +174,7 @@ class VirtualCameraManager(
     /**
      * Get the virtual camera's current status.
      */
-    fun getStatus(): String = VirtualCameraProvider({}).getStatus()
+    fun getStatus(): String = provider.getStatus()
 
     /**
      * Get the virtual camera's enabled state.

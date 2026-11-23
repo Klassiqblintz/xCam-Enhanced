@@ -219,7 +219,7 @@ class VirtualCameraSession(
 
         // Send to output surfaces
         for (surface in outputSurfaces) {
-            if (surface.isValid && surface.isCapturing) {
+            if (surface.surface != null) {
                 // Write NV21 frame to the surface
                 writeFrameToSurface(surface, finalNv21, yuvFrame.width, yuvFrame.height)
             }
