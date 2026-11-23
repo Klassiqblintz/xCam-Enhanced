@@ -105,7 +105,42 @@ class VirtualCameraDevice(
         stateCallback = callback
         // Report success immediately (virtual camera is always "ready")
         cameraHandler.post {
-            callback.onOpened(this)
+            callback.onOpened(object : CameraDevice {
+                override fun getId(): String = deviceId
+                override fun createCaptureSession(
+                    outputSurfaces: List<Surface>,
+                    sessionCallback: CameraCaptureSession.StateCallback,
+                    handler: Handler?
+                ): CameraCaptureSession = this@VirtualCameraDevice.createCaptureSession(
+                    outputSurfaces, sessionCallback, handler
+                )
+                override fun createCaptureRequest(template: Int): CaptureRequest.Builder =
+                    this@VirtualCameraDevice.createCaptureRequest(template)
+                override fun capture(
+                    requests: Array<out CaptureRequest>,
+                    callback: CameraCaptureSession.CaptureCallback?,
+                    handler: Handler?
+                ): Unit = this@VirtualCameraDevice.capture(requests, callback, handler)
+                override fun setRepeatingRequest(
+                    request: CaptureRequest,
+                    callback: CameraCaptureSession.CaptureCallback?,
+                    handler: Handler?
+                ): Unit = this@VirtualCameraDevice.setRepeatingRequest(request, callback, handler)
+                override fun captureBurst(
+                    requests: List<out CaptureRequest>,
+                    callback: CameraCaptureSession.CaptureCallback?,
+                    handler: Handler?
+                ): Unit = this@VirtualCameraDevice.captureBurst(requests, callback, handler)
+                override fun cancelCaptures(): Unit = Unit
+                override fun setSessionThermalStatus(thermalStatus: Int): Unit = Unit
+                override fun setTorchState(state: Boolean): Boolean = false
+                override fun getColdFlashCharacteristics(): android.hardware.camera2.FlashInfo.ColdFlash? = null
+                override fun getChargedFlashCharacteristics(): android.hardware.camera2.FlashInfo.ChargedFlash? = null
+                override fun release(): Unit = this@VirtualCameraDevice.release()
+                override fun hashCode(): Int = this@VirtualCameraDevice.hashCode()
+                override fun equals(other: Any?): Boolean = this@VirtualCameraDevice == other
+                override fun toString(): String = this@VirtualCameraDevice.toString()
+            })
         }
     }
 

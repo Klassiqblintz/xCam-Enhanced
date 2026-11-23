@@ -11,8 +11,10 @@ import android.view.Surface
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.nio.FloatBuffer
-import javax.microedition.khronos.egl
-import javax.microedition.khronos.opengles.GL10
+import javax.microedition.khronos.egl.EGLConfig
+import javax.microedition.khronos.egl.EGLContext
+import javax.microedition.khronos.egl.EGLDisplay
+import javax.microedition.khronos.egl.EGLSurface
 import javax.microedition.khronos.opengles.GL20
 
 /**
@@ -40,40 +42,44 @@ class EglFrameRenderer(private val logAction: (String) -> Unit) {
         private const val EGL_SUCCESS = 12297
         private const val EGL_FALSE = 0
         private const val EGL_TRUE = 1
-        private const val EGL_NO_CONTEXT = 0
-        private const val EGL_NO_DISPLAY = 0
-        private const val EGL_NO_SURFACE = 0
+        private const val EGL_WIDTH = 0x3099
+        private const val EGL_HEIGHT = 0x309A
+        private val EGL_NO_CONTEXT: EGLContext? = null
+        private val EGL_NO_DISPLAY: EGLDisplay? = null
+        private val EGL_NO_SURFACE: EGLSurface? = null
 
         // Fragment shader for YUV_420_888 -> RGB conversion
-        private const val YUV_FRAGMENT_SHADER = """
-            #extension GL_OES_EGL_image_external : require
-            precision mediump float;
-            varying vec2 vTextureCoord;
-            uniform samplerExternal2D yTexture;
-            uniform samplerExternal2D uTexture;
-            uniform samplerExternal2D vTexture;
-            void main() {
-                float r, g, b, y, u, v;
-                y = texture2D(yTexture, vTextureCoord).r;
-                u = texture2D(uTexture, vTextureCoord).r - 0.5;
-                v = texture2D(vTexture, vTextureCoord).r - 0.5;
-                r = y + 1.402 * v;
-                g = y - 0.344136 * u - 0.714136 * v;
-                b = y + 1.771 * u;
-                gl_FragColor = vec4(r, g, b, 1.0);
-            }
-        """.trimIndent()
+        val YUV_FRAGMENT_SHADER: String
+            get() = """
+                #extension GL_OES_EGL_image_external : require
+                precision mediump float;
+                varying vec2 vTextureCoord;
+                uniform samplerExternal2D yTexture;
+                uniform samplerExternal2D uTexture;
+                uniform samplerExternal2D vTexture;
+                void main() {
+                    float r, g, b, y, u, v;
+                    y = texture2D(yTexture, vTextureCoord).r;
+                    u = texture2D(uTexture, vTextureCoord).r - 0.5;
+                    v = texture2D(vTexture, vTextureCoord).r - 0.5;
+                    r = y + 1.402 * v;
+                    g = y - 0.344136 * u - 0.714136 * v;
+                    b = y + 1.771 * u;
+                    gl_FragColor = vec4(r, g, b, 1.0);
+                }
+            """.trimIndent()
 
         // Vertex shader (standard quad)
-        private const val YUV_VERTEX_SHADER = """
-            attribute vec4 vPosition;
-            attribute vec2 vTextureCoord;
-            varying vec2 vTextureCoord;
-            void main() {
-                vTextureCoord = vTextureCoord;
-                gl_Position = vPosition;
-            }
-        """.trimIndent()
+        val YUV_VERTEX_SHADER: String
+            get() = """
+                attribute vec4 vPosition;
+                attribute vec2 vTextureCoord;
+                varying vec2 vTextureCoord;
+                void main() {
+                    vTextureCoord = vTextureCoord;
+                    gl_Position = vPosition;
+                }
+            """.trimIndent()
     }
 
     private var glInitialized = false
@@ -139,6 +145,10 @@ class EglFrameRenderer(private val logAction: (String) -> Unit) {
     private external fun glEnableVertexAttribArray(index: Int)
     private external fun glVertexAttribPointer(
         index: Int, size: Int, type: Int, stride: Int, pointer: Long
+    )
+
+    private external fun glVertexAttribPointerWithBuffer(
+        index: Int, size: Int, type: Int, stride: Int, buffer: java.nio.Buffer?
     )
     private external fun glDrawArrays(mode: Int, first: Int, count: Int)
     private external fun glGenTextures(n: Int, textures: IntArray?)
@@ -209,7 +219,7 @@ class EglFrameRenderer(private val logAction: (String) -> Unit) {
             )
 
             glContext = eglCreateContext(
-                glDisplay!!, configs[0], EGL_NO_CONTEXT, contextAttribs
+                glDisplay!!, configs[0]!!, EGL_NO_CONTEXT, contextAttribs
             )
 
             if (glContext == EGL_NO_CONTEXT) {
@@ -345,7 +355,7 @@ class EglFrameRenderer(private val logAction: (String) -> Unit) {
             // Y plane (luminance)
             val yTexture = textures[0]
             glActiveTexture(0x0DE0) // GL_TEXTURE0
-            glBindTexture(0x8063) // GL_TEXTURE_EXTERNAL_OES
+            glBindTexture(0x8063, yTexture)
             glTexParameteri(0x8063, 0x2801, 0x2000) // GL_TEXTURE_MAG_FILTER, GL_LINEAR
             glTexParameteri(0x8063, 0x2800, 0x2001) // GL_TEXTURE_MIN_FILTER, GL_LINEAR
             glTexParameteri(0x8063, 0x2100, 0x2000) // GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE
@@ -394,24 +404,19 @@ class EglFrameRenderer(private val logAction: (String) -> Unit) {
 
             // Set vertex attributes
             glEnableVertexAttribArray(vPositionHandle)
-            glVertexAttribPointer(vPositionHandle, 3, 0x1406, 0, 12, vertexBuffer)
+            glVertexAttribPointerWithBuffer(vPositionHandle, 3, 0x1406, 12, vertexBuffer)
 
             glEnableVertexAttribArray(vTextureCoordHandle)
-            glVertexAttribPointer(vTextureCoordHandle, 2, 0x1406, 0, 8, texCoordBuffer)
+            glVertexAttribPointerWithBuffer(vTextureCoordHandle, 2, 0x1406, 8, texCoordBuffer)
 
             // Set texture uniforms
             glUseProgram(glProgram)
             glActiveTexture(0x0DE0)
             glUniform1i(yTextureHandle, 0)
-            glBindTexture(0x8063, yTexture)
-
             glActiveTexture(0x0DE1)
             glUniform1i(uTextureHandle, 1)
-            glBindTexture(0x8063, uTexture)
-
             glActiveTexture(0x0DE2)
             glUniform1i(vTextureHandle, 2)
-            glBindTexture(0x8063, vTexture)
 
             // Draw the quad
             glDrawArrays(0x0003, 0, 4) // GL_TRIANGLE_STRIP
@@ -506,8 +511,8 @@ class EglFrameRenderer(private val logAction: (String) -> Unit) {
                     glDisplay, EGL_NO_SURFACE, EGL_NO_SURFACE,
                     EGL_NO_CONTEXT
                 )
-                glSurface?.let { eglDestroySurface(glDisplay!!, it) }
-                glContext?.let { eglDestroyContext(glDisplay!!, it) }
+                glSurface?.let { eglDestroySurface(glDisplay!!, it as EGLSurface) }
+                glContext?.let { eglDestroyContext(glDisplay!!, it as EGLContext) }
                 eglTerminate(glDisplay)
             }
             glInitialized = false

@@ -10,7 +10,7 @@ object VirtualCameraConstants {
      * Camera facing direction for the virtual camera.
      * EXTERNAL (2) = external/USB/virtual camera per CameraCharacteristics
      */
-    const val VIRTUAL_CAMERA_FACING = android.hardware.Camera2.CameraCharacteristics.LENS_FACING_EXTERNAL
+    const val VIRTUAL_CAMERA_FACING = android.hardware.camera2.CameraCharacteristics.LENS_FACING_EXTERNAL
 
     /**
      * Camera ID used to register with the CameraServer.
@@ -23,7 +23,7 @@ object VirtualCameraConstants {
      * FULL = supports all Camera2 API features (most important for KYC bypass).
      * EXTERNAL = USB/virtual camera level (limited 3A, no flash).
      */
-    const val VIRTUAL_HARDWARE_LEVEL = android.hardware.Camera2.CameraCharacteristics.HARDWARE_LEVEL_FULL
+    const val VIRTUAL_HARDWARE_LEVEL = android.hardware.camera2.CameraCharacteristics.HARDWARE_LEVEL_FULL
 
     /**
      * Sensor info - this is a virtual/external sensor
@@ -193,17 +193,17 @@ object VirtualCameraConstants {
     /**
      * Supported jpeg orientations.
      */
-    const val JPEG_ORIENTATIONS = arrayOf(0, 90, 180, 270)
+    val JPEG_ORIENTATIONS = intArrayOf(0, 90, 180, 270)
 
     /**
      * Supported jpeg thumbnail orientations.
      */
-    const val JPEG_THUMBNAIL_ORIENTATIONS = arrayOf(0, 90, 180, 270)
+    val JPEG_THUMBNAIL_ORIENTATIONS = intArrayOf(0, 90, 180, 270)
 
     /**
      * Supported JPEG quality levels.
      */
-    const val JPEG_QUALITY_LEVELS = intArrayOf(0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100)
+    val JPEG_QUALITY_LEVELS = intArrayOf(0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100)
 
     /**
      * Supported JPEG thumbnail sizes.
