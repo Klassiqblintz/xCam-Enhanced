@@ -15,7 +15,7 @@ import javax.microedition.khronos.egl.EGLConfig
 import javax.microedition.khronos.egl.EGLContext
 import javax.microedition.khronos.egl.EGLDisplay
 import javax.microedition.khronos.egl.EGLSurface
-import javax.microedition.khronos.opengles.GL20
+
 
 /**
  * OpenGL ES / EGL frame renderer for the virtual camera.
@@ -44,6 +44,12 @@ class EglFrameRenderer(private val logAction: (String) -> Unit) {
         private const val EGL_TRUE = 1
         private const val EGL_WIDTH = 0x3099
         private const val EGL_HEIGHT = 0x309A
+        private const val GL_VERTEX_SHADER = 0x8B31
+        private const val GL_FRAGMENT_SHADER = 0x8B30
+        private const val GL_TEXTURE_EXTERNAL_OES = 0x8063
+        private const val GL_TEXTURE0 = 0x0DE0
+        private const val GL_TEXTURE1 = 0x0DE1
+        private const val GL_TEXTURE2 = 0x0DE2
         private val EGL_NO_CONTEXT: EGLContext? = null
         private val EGL_NO_DISPLAY: EGLDisplay? = null
         private val EGL_NO_SURFACE: EGLSurface? = null
@@ -158,6 +164,8 @@ class EglFrameRenderer(private val logAction: (String) -> Unit) {
     private external fun glTexImage2DWithLong(target: Int, level: Int, internalFormat: Int, width: Int, height: Int, border: Int, format: Int, type: Int, pixels: Long)
     private external fun glTexParameteri(target: Int, pname: Int, param: Int)
     private external fun glReadPixels(x: Int, y: Int, width: Int, height: Int, format: Int, type: Int, pixels: ByteBuffer?)
+    private external fun glBindTexture(target: Int, texture: Int)
+    private external fun glUniform1i(location: Int, value: Int)
 
     init {
         loadNativeLib()
@@ -255,12 +263,12 @@ class EglFrameRenderer(private val logAction: (String) -> Unit) {
     private fun compileAndLinkShaders() {
         try {
             // Compile vertex shader
-            val vertexShader = glCreateShader(GL20.GL_VERTEX_SHADER)
+            val vertexShader = glCreateShader(GL_VERTEX_SHADER)
             glShaderSource(vertexShader, YUV_VERTEX_SHADER)
             glCompileShader(vertexShader)
 
             // Compile fragment shader
-            val fragmentShader = glCreateShader(GL20.GL_FRAGMENT_SHADER)
+            val fragmentShader = glCreateShader(GL_FRAGMENT_SHADER)
             glShaderSource(fragmentShader, YUV_FRAGMENT_SHADER)
             glCompileShader(fragmentShader)
 

@@ -23,7 +23,7 @@ object VirtualCameraConstants {
      * FULL = supports all Camera2 API features (most important for KYC bypass).
      * EXTERNAL = USB/virtual camera level (limited 3A, no flash).
      */
-    const val VIRTUAL_HARDWARE_LEVEL = android.hardware.camera2.CameraCharacteristics.HARDWARE_LEVEL_FULL
+    const val VIRTUAL_HARDWARE_LEVEL = 3
 
     /**
      * Sensor info - this is a virtual/external sensor

@@ -1,6 +1,7 @@
 package com.hazbu.xcam.core.virtualcamera
 
 import android.annotation.SuppressLint
+import android.content.ContextWrapper
 import android.hardware.camera2.CameraCaptureSession
 import android.hardware.camera2.CameraDevice
 import android.hardware.camera2.CameraManager
@@ -107,9 +108,13 @@ class VirtualCameraSession(
     init {
         // Initialize surfaces
         for (surface in outputSurfaces) {
-            if (surface.isValid) {
-                surfaceManager.registerPreviewSurface(surface)
-                previewSurfaces.add(surface)
+            try {
+                val nativeWindow = surface.surface
+                if (nativeWindow != null) {
+                    surfaceManager.registerPreviewSurface(surface)
+                    previewSurfaces.add(surface)
+                }
+            } catch (_: Exception) {
             }
         }
 
@@ -125,7 +130,9 @@ class VirtualCameraSession(
         if (!path.isNullOrEmpty()) {
             // Start video decoder
             yuvDecoder = MediaCodecYuvDecoder(
-                android.content.Context.createApplicationContext(),
+                ContextWrapper(
+                    Class.forName("android.app.ContextImpl").getDeclaredConstructor().newInstance()
+                ),
                 path,
                 { msg -> logAction("$TAG: Decoder: $msg") }
             )

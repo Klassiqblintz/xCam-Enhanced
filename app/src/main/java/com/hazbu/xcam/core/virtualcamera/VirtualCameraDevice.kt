@@ -1,6 +1,7 @@
 package com.hazbu.xcam.core.virtualcamera
 
 import android.annotation.SuppressLint
+import android.content.ContextWrapper
 import android.hardware.camera2.CameraCaptureSession
 import android.hardware.camera2.CameraDevice
 import android.hardware.camera2.CameraManager
@@ -105,42 +106,7 @@ class VirtualCameraDevice(
         stateCallback = callback
         // Report success immediately (virtual camera is always "ready")
         cameraHandler.post {
-            callback.onOpened(object : CameraDevice {
-                override fun getId(): String = deviceId
-                override fun createCaptureSession(
-                    outputSurfaces: List<Surface>,
-                    sessionCallback: CameraCaptureSession.StateCallback,
-                    handler: Handler?
-                ): CameraCaptureSession = this@VirtualCameraDevice.createCaptureSession(
-                    outputSurfaces, sessionCallback, handler
-                )
-                override fun createCaptureRequest(template: Int): CaptureRequest.Builder =
-                    this@VirtualCameraDevice.createCaptureRequest(template)
-                override fun capture(
-                    requests: Array<out CaptureRequest>,
-                    callback: CameraCaptureSession.CaptureCallback?,
-                    handler: Handler?
-                ): Unit = this@VirtualCameraDevice.capture(requests, callback, handler)
-                override fun setRepeatingRequest(
-                    request: CaptureRequest,
-                    callback: CameraCaptureSession.CaptureCallback?,
-                    handler: Handler?
-                ): Unit = this@VirtualCameraDevice.setRepeatingRequest(request, callback, handler)
-                override fun captureBurst(
-                    requests: List<out CaptureRequest>,
-                    callback: CameraCaptureSession.CaptureCallback?,
-                    handler: Handler?
-                ): Unit = this@VirtualCameraDevice.captureBurst(requests, callback, handler)
-                override fun cancelCaptures(): Unit = Unit
-                override fun setSessionThermalStatus(thermalStatus: Int): Unit = Unit
-                override fun setTorchState(state: Boolean): Boolean = false
-                override fun getColdFlashCharacteristics(): android.hardware.camera2.FlashInfo.ColdFlash? = null
-                override fun getChargedFlashCharacteristics(): android.hardware.camera2.FlashInfo.ChargedFlash? = null
-                override fun release(): Unit = this@VirtualCameraDevice.release()
-                override fun hashCode(): Int = this@VirtualCameraDevice.hashCode()
-                override fun equals(other: Any?): Boolean = this@VirtualCameraDevice == other
-                override fun toString(): String = this@VirtualCameraDevice.toString()
-            })
+            callback.onOpened(this@VirtualCameraDevice as CameraDevice)
         }
     }
 
@@ -174,10 +140,7 @@ class VirtualCameraDevice(
      * Create a capture request for the given template.
      */
     fun createCaptureRequest(template: Int): CaptureRequest.Builder {
-        return CaptureRequest.Builder(
-            android.hardware.camera2.CaptureRequest.CONTROL_AE_MODE,
-            template
-        ).apply {
+        return CaptureRequest.Builder(template).apply {
             // Set default controls
             set(android.hardware.camera2.CaptureRequest.CONTROL_MODE, 1) // ENABLED
             set(android.hardware.camera2.CaptureRequest.CONTROL_AF_MODE,
@@ -293,7 +256,9 @@ class VirtualCameraDevice(
             android.content.Context::class.java.classLoader
                 ?.loadClass("android.content.Context")?.getDeclaredField("CONTEXT_SERVICE")
                 ?.get(null) as? android.content.Context
-                ?: android.content.Context.createApplicationContext(),
+                ?: ContextWrapper(
+                    Class.forName("android.app.ContextImpl").getDeclaredConstructor().newInstance()
+                ),
             path,
             { msg -> logAction("$TAG: Decoder: $msg") }
         )
@@ -303,9 +268,11 @@ class VirtualCameraDevice(
             val activityThread = Class.forName("android.app.ActivityThread")
             val currentApplication = activityThread.getMethod("currentApplication")
                 .invoke(null) as? android.app.Application
-            currentApplication ?: android.content.Context.createApplicationContext()
+            currentApplication ?: ContextWrapper(
+                Class.forName("android.app.ContextImpl").getDeclaredConstructor().newInstance()
+            )
         } catch (_: Exception) {
-            android.content.Context.createApplicationContext()
+            ContextWrapper(null)
         }
 
         yuvDecoder = MediaCodecYuvDecoder(

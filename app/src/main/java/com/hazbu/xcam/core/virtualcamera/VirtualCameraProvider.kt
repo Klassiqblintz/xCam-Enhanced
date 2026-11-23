@@ -64,8 +64,8 @@ class VirtualCameraProvider(
     }
 
     private val cameraManager: CameraManager? = try {
-        android.content.Context.CAMERA_SERVICE?.let {
-            it.getSystemService(CameraManager::class.java)
+        android.content.Context.CAMERA_SERVICE?.let { context ->
+            context.getSystemService(CameraManager::class.java) as? CameraManager
         }
     } catch (_: Exception) {
         null
@@ -100,8 +100,8 @@ class VirtualCameraProvider(
 
         try {
             cameraManager?.let { cm ->
-                // Register as an external/USB camera
-                cm.registerVirtualCamera(VIRTUAL_CAMERA_ID, VIRTUAL_CAMERA_FACING, object :
+                // Register as an external/USB camera via reflection
+                val virtualCameraDeviceImpl = object :
                     CameraManager.VirtualCameraDevice {
 
                     override fun getCharacteristics(): CameraCharacteristics {
@@ -124,7 +124,14 @@ class VirtualCameraProvider(
                     override fun getPhysicalCameraDeviceIds(): Array<String> {
                         return emptyArray()
                     }
-                })
+                }
+
+                val registerMethod = CameraManager::class.java.getMethod(
+                    "registerVirtualCamera",
+                    String::class.java, Int::class.java,
+                    CameraManager.VirtualCameraDevice::class.java
+                )
+                registerMethod.invoke(cm, VIRTUAL_CAMERA_ID, VIRTUAL_CAMERA_FACING, virtualCameraDeviceImpl)
 
                 isRegistered = true
                 isExternalCameraRegistered = true
@@ -140,7 +147,10 @@ class VirtualCameraProvider(
      */
     fun unregister() {
         try {
-            cameraManager?.unregisterVirtualCamera(VIRTUAL_CAMERA_ID)
+            val unregisterMethod = CameraManager::class.java.getMethod(
+                "unregisterVirtualCamera", String::class.java
+            )
+            unregisterMethod.invoke(cameraManager, VIRTUAL_CAMERA_ID)
             isRegistered = false
             isExternalCameraRegistered = false
             logAction("$TAG: Unregistered virtual camera ID=$VIRTUAL_CAMERA_ID")
@@ -168,107 +178,100 @@ class VirtualCameraProvider(
      * This tells the Camera2 framework what capabilities the virtual camera has.
      */
     private fun buildCameraCharacteristics(): CameraCharacteristics {
+        val metadata = object : java.lang.annotation.Annotation {
+            override fun annotationType(): Class<*> = CameraMetadata::class.java
+        }
+
+        // Use a mutable map to collect all characteristics
+        val map = java.util.HashMap<Any, Any>()
+        fun set(key: Any, value: Any) {
+            map[key] = value
+        }
+
+        // Camera facing: EXTERNAL (2) = external/USB/virtual
+        set(CameraCharacteristics.LENS_FACING, VIRTUAL_CAMERA_FACING)
+
+        // Hardware level: FULL = 3
+        set(CameraCharacteristics.HARDWARE_LEVEL, 3)
+
+        // Info: this is a virtual/external camera
+        set(CameraCharacteristics.INFO_SUPPORTED_HARDWARE_LEVEL, 3)
+
+        // Sensor: external
+        set(CameraCharacteristics.INFO_SENSOR_PHYSICAL_SIZE, 1.0f)
+        set(CameraCharacteristics.NOISE_PROFILE, floatArrayOf(0f, 0f))
+
+        // Optical: external
+        set(CameraCharacteristics.OPTICAL_LENS_FACING, VIRTUAL_CAMERA_FACING)
+
+        // Info: external camera
+        set(CameraCharacteristics.INFO_USING_DYNAMIC_VIDEO_STABILIZATION_MODE, 1)
+
+        // Request: supported
+        set(CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES, intArrayOf(
+            CameraMetadata.REQUEST_AVAILABLE_CAPABILITIES_BUNDLE,
+            CameraMetadata.REQUEST_AVAILABLE_CAPABILITIES_BURST_CAPTURE,
+            CameraMetadata.REQUEST_AVAILABLE_CAPABILITIES_CALIBRATED_LENS,
+            CameraMetadata.REQUEST_AVAILABLE_CAPABILITIES_CONSTANT_VIDEO_STABILIZATION_MODE,
+            CameraMetadata.REQUEST_AVAILABLE_CAPABILITIES_DYNAMIC_RANGE_10_BIT,
+            CameraMetadata.REQUEST_AVAILABLE_CAPABILITIES_DYNAMIC_RANGE_HIGH,
+            CameraMetadata.REQUEST_AVAILABLE_CAPABILITIES_DYNAMIC_RANGE_WIDE,
+            CameraMetadata.REQUEST_AVAILABLE_CAPABILITIES_FIXED_DEVICE_FOCUS,
+            CameraMetadata.REQUEST_AVAILABLE_CAPABILITIES_FLASH,
+            CameraMetadata.REQUEST_AVAILABLE_CAPABILITIES_FOCUS_AREAS,
+            CameraMetadata.REQUEST_AVAILABLE_CAPABILITIES_LOGICAL_MULTI_CAMERA,
+            CameraMetadata.REQUEST_AVAILABLE_CAPABILITIES_MANUAL_LENS_MANAGEMENT,
+            CameraMetadata.REQUEST_AVAILABLE_CAPABILITIES_NATIVE,
+            CameraMetadata.REQUEST_AVAILABLE_CAPABILITIES_PARALLEL_OUTPUT,
+            CameraMetadata.REQUEST_AVAILABLE_CAPABILITIES_PER_FRAME_DATA_PIPELINE,
+            CameraMetadata.REQUEST_AVAILABLE_CAPABILITIES_POST_PROCESSING_RATE,
+            CameraMetadata.REQUEST_AVAILABLE_CAPABILITIES_RAW,
+            CameraMetadata.REQUEST_AVAILABLE_CAPABILITIES_RAW_DEPTH,
+            CameraMetadata.REQUEST_AVAILABLE_CAPABILITIES_SEMI_RAW,
+            CameraMetadata.REQUEST_AVAILABLE_CAPABILITIES_SHARPNESS,
+            CameraMetadata.REQUEST_AVAILABLE_CAPABILITIES_SLOW_MOTION,
+            CameraMetadata.REQUEST_AVAILABLE_CAPABILITIES_SNAPSHOT_HDR,
+            CameraMetadata.REQUEST_AVAILABLE_CAPABILITIES_STEREO_CAPTURE,
+            CameraMetadata.REQUEST_AVAILABLE_CAPABILITIES_STEREO_VIDEO,
+            CameraMetadata.REQUEST_AVAILABLE_CAPABILITIES_SYNC,
+            CameraMetadata.REQUEST_AVAILABLE_CAPABILITIES_TURBO_3A,
+            CameraMetadata.REQUEST_AVAILABLE_CAPABILITIES_UPSTREAM_PROCESSED,
+            CameraMetadata.REQUEST_AVAILABLE_CAPABILITIES_VENDOR,
+            CameraMetadata.REQUEST_AVAILABLE_CAPABILITIES_YCBCR_420,
+            CameraMetadata.REQUEST_AVAILABLE_CAPABILITIES_YUV_RESTRICTED,
+            CameraMetadata.REQUEST_AVAILABLE_CAPABILITIES_ZSL,
+        ))
+
+        // Stream configuration map
+        val configs = buildStreamConfigs()
+        set(
+            CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP,
+            configs
+        )
+
+        // Hot standby: not supported
+        set(CameraCharacteristics.INFO_AVAILABLE_HOT_STANDBY, 0)
+
+        // Focal length range
+        set(CameraCharacteristics.LENS_FOCAL_LENGTH, 1.0f)
+
+        // Distortion model
+        set(CameraCharacteristics.DISTORTION_MODEL, floatArrayOf(
+            1.0f, 0f, 0f, 0f,
+            0f, 1.0f, 0f, 0f,
+            0f, 0f, 1.0f, 0f,
+            0f, 0f, 0f, 1.0f
+        ))
+
+        // Hot standby again
+        set(CameraCharacteristics.INFO_AVAILABLE_HOT_STANDBY, 0)
+
+        // Logical multi-camera
+        set(CameraCharacteristics.LOGICAL_MULTI_CAMERA_ACTIVE_PHYSICAL_CAMES, emptyArray())
+        set(CameraCharacteristics.INFO_SUPPORTED_NAMED_IMAGES, emptyArray())
+
         return CameraCharacteristics(VIRTUAL_CAMERA_ID).apply {
-            // Camera facing: EXTERNAL (2) = external/USB/virtual
-            set(CameraCharacteristics.LENS_FACING, VIRTUAL_CAMERA_FACING)
-
-            // Hardware level: FULL (supports all Camera2 features)
-            set(CameraCharacteristics.HARDWARE_LEVEL, CameraMetadata.HARDWARE_LEVEL_FULL)
-
-            // Info: this is a virtual/external camera
-            set(CameraCharacteristics.INFO_SUPPORTED_HARDWARE_LEVEL, CameraMetadata.HARDWARE_LEVEL_FULL)
-
-            // Sensor: external
-            set(CameraCharacteristicsSENSOR_PHYSICAL_SIZE, 1.0f) // 1 inch (arbitrary for virtual)
-            set(CameraCharacteristics.NOISE_PROFILE, floatArrayOf(0f, 0f))
-
-            // Optical: external
-            set(CameraCharacteristics.opticalLENS_FACING, VIRTUAL_CAMERA_FACING)
-
-            // Info: external camera
-            set(CameraCharacteristics.INFO_USING_DYNAMIC_VIDEO_STABILIZATION_MODE, 1)
-
-            // Request: supported
-            set(CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES, arrayOf(
-                CameraMetadata.REQUEST_AVAILABLE_CAPABILITIES_BUNDLE,
-                CameraMetadata.REQUEST_AVAILABLE_CAPABILITIES_BurstCapture,
-                CameraMetadata.REQUEST_AVAILABLE_CAPABILITIES_CALIBRated_LENS,
-                CameraMetadata.REQUEST_AVAILABLE_CAPABILITIES_CONSTANT_VIDEO_STABILIZATION_MODE,
-                CameraMetadata.REQUEST_AVAILABLE_CAPABILITIES_DYNAMIC_RANGE_10_BIT,
-                CameraMetadata.REQUEST_AVAILABLE_CAPABILITIES_DYNAMIC_RANGE_HIGH,
-                CameraMetadata.REQUEST_AVAILABLE_CAPABILITIES_DYNAMIC_RANGE_WIDE,
-                CameraMetadata.REQUEST_AVAILABLE_CAPABILITIES_FIXED_DEVICE_Focus,
-                CameraMetadata.REQUEST_AVAILABLE_CAPABILITIES_FLASH,
-                CameraMetadata.REQUEST_AVAILABLE_CAPABILITIES_Focus_Area,
-                CameraMetadata.REQUEST_AVAILABLE_CAPABILITIES_LOGICAL_MULTI_CAMERA,
-                CameraMetadata.REQUEST_AVAILABLE_CAPABILITIESManual_LeNS_MANAGEMENT,
-                CameraMetadata.REQUEST_AVAILABLE_CAPABILITIES_NATIVE,
-                CameraMetadata.REQUEST_AVAILABLE_CAPABILITIES_PARALLEL_OUTPUT,
-                CameraMetadata.REQUEST_AVAILABLE_CAPABILITIES_PER_FRAME_DATA_PIPELINE,
-                CameraMetadata.REQUEST_AVAILABLE_CAPABILITIES_POST_PROCESSING_RATE,
-                CameraMetadata.REQUEST_AVAILABLE_CAPABILITIES_RAW,
-                CameraMetadata.REQUEST_AVAILABLE_CAPABILITIES_RAW_DEPTH,
-                CameraMetadata.REQUEST_AVAILABLE_CAPABILITIES_SEmi_RAw,
-                CameraMetadata.REQUEST_AVAILABLE_CAPABILITIES_SHarpness,
-                CameraMetadata.REQUEST_AVAILABLE_CAPABILITIES_Slow_MOTION,
-                CameraMetadata.REQUEST_AVAILABLE_CAPABILITIES_SNAPSHOT_HDR,
-                CameraMetadata.REQUEST_AVAILABLE_CAPABILITIES_STEREO_CAMERA,
-                CameraMetadata.REQUEST_AVAILABLE_CAPABILITIES_STEREO_VIDEO,
-                CameraMetadata.REQUEST_AVAILABLE_CAPABILITIES_SYNC,
-                CameraMetadata.REQUEST_AVAILABLE_CAPABILITIES_TURBO_3A,
-                CameraMetadata.REQUEST_AVAILABLE_CAPABILITIES_UPSTREAM_PROCESSED,
-                CameraMetadata.REQUEST_AVAILABLE_CAPABILITIES_VENDOR,
-                CameraMetadata.REQUEST_AVAILABLE_CAPABILITIES_YCRCB_420,
-                CameraMetadata.REQUEST_AVAILABLE_CAPABILITIES_YUV_restRictED,
-                CameraMetadata.REQUEST_AVAILABLE_CAPABILITIES_ZSL,
-            ))
-
-            // Stream configuration map
-            val configs = buildStreamConfigs()
-            set(
-                CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP,
-                configs
-            )
-
-            // Hot standby: not supported
-            set(CameraCharacteristics.INFO_AVAILABLE_HOT_STANDBY, 0)
-
-            // Max zoom: 16x
-            set(CameraCharacteristics.LENS_FACING, VIRTUAL_CAMERA_FACING)
-            set(CameraCharacteristics.LENS_FACING, VIRTUAL_CAMERA_FACING)
-            set(CameraCharacteristics.LENS_FACING, VIRTUAL_CAMERA_FACING)
-
-            // Min focal length: 1.0
-            set(CameraCharacteristics.LENS_FACING, VIRTUAL_CAMERA_FACING)
-
-            // Max focal length: 5.0
-            set(CameraCharacteristics.LENS_FACING, VIRTUAL_CAMERA_FACING)
-
-            // Distortion model: none (virtual camera has no optical distortion)
-            set(CameraCharacteristics.DISTORTION_MODEL, 1.0f)
-
-            // Distortion transform: identity matrix
-            set(CameraCharacteristics.DISTORTION_TRANSFORM, floatArrayOf(
-                1.0f, 0f, 0f, 0f,
-                0f, 1.0f, 0f, 0f,
-                0f, 0f, 1.0f, 0f,
-                0f, 0f, 0f, 1.0f
-            ))
-
-            // Sensor timing: continuous (virtual camera can deliver frames instantly)
-            set(CameraCharacteristicsSENSOR_STATIC_SENSOR_TIMING, 0L)
-
-            // Hot standby: not supported
-            set(CameraCharacteristics.INFO_AVAILABLE_HOT_STANDBY, 0)
-
-            // Logical multi-camera: not supported (single virtual camera)
-            set(CameraCharacteristics.LOGICAL_MULTI_CAMERA_ACTIVEPHYSICAL_CAMES, emptyArray())
-
-            // Max num of active logical camera devices
-            set(CameraCharacteristics.INFO_SUPPORTED_NAMED_IMAGES, emptyArray())
-
-            // Max num of active logical camera devices
-            set(CameraCharacteristics.INFO_SUPPORTED_NAMED_IMAGES, emptyArray())
+            put(map)
         }
     }
 
@@ -310,15 +313,6 @@ class VirtualCameraProvider(
      * Get the virtual camera's EGL renderer.
      */
     fun getEglRenderer(): EglFrameRenderer = eglRenderer
-
-    /**
-     * Get the virtual camera's status.
-     */
-    fun getStatus(): String = when {
-        isRegistered -> "REGISTERED (ID: $VIRTUAL_CAMERA_ID, FACING: EXTERNAL)"
-        isExternalCameraRegistered -> "REGISTERED AS EXTERNAL"
-        else -> "NOT REGISTERED"
-    }
 
     /**
      * Release all resources.
