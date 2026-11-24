@@ -273,8 +273,8 @@ class VirtualCameraProvider(
         ))
 
         // Logical multi-camera
-        set(KEY_LOGICAL_MULTI_CAMERA_ACTIVE_PHYSICAL_CAMES, emptyArray())
-        set(KEY_INFO_SUPPORTED_NAMED_IMAGES, emptyArray())
+        set(KEY_LOGICAL_MULTI_CAMERA_ACTIVE_PHYSICAL_CAMES, emptyArray<String>())
+        set(KEY_INFO_SUPPORTED_NAMED_IMAGES, emptyArray<String>())
 
         return CameraCharacteristics::class.java.getDeclaredConstructor(
             java.lang.String::class.java

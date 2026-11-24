@@ -298,7 +298,7 @@ class XCamModule : XposedModule() {
     fun enableWebRtc() { webRtcHooks.enable() }
     fun disableWebRtc() { webRtcHooks.disable() }
     fun isWebRtcHooking(): Boolean = webRtcHooks.isHooking()
-    fun createFakeCapturer(surface: com.view.Surface?) = webRtcHooks.createFakeCapturer(surface)
+    fun createFakeCapturer(surface: android.view.Surface?) = webRtcHooks.createFakeCapturer(surface)
     fun createFakeSurfaceTextureHelper() = webRtcHooks.createFakeSurfaceTextureHelper()
     fun hookCamera2CapturerStart(capturer: Any, callback: Any) { webRtcHooks.hookCamera2CapturerStart(capturer, callback) }
     fun createFakeVideoTrack(pc: Any, trackId: String) = webRtcHooks.createFakeVideoTrack(pc, trackId)
@@ -397,7 +397,7 @@ class XCamModule : XposedModule() {
         }
 
         // Enable CameraX hooks if available
-        if (cameraXHooks.isCameraXAvailable()) {
+        if (cameraXHooks.isCameraXAvailable) {
             cameraXHooks.enable()
             logInit("[+] CameraX hooks ENABLED")
         }
@@ -407,7 +407,7 @@ class XCamModule : XposedModule() {
         logInit("[+] Depth/IR camera ENABLED")
 
         // Enable WebRTC/WebView deep hooks if available
-        if (webRtcHooks.isWebRtcAvailable()) {
+        if (webRtcHooks.isWebRtcAvailable) {
             webRtcHooks.enable()
             logInit("[+] WebRTC/WebView deep hooks ENABLED")
         }

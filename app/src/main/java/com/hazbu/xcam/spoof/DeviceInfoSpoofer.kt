@@ -3,7 +3,6 @@ package com.hazbu.xcam.spoof
 import android.annotation.SuppressLint
 import android.content.Context
 import android.os.Build
-import android.os.SystemProperties
 import android.telephony.TelephonyManager
 import android.util.Log
 
@@ -100,7 +99,7 @@ class DeviceInfoSpoofer(
     private var originalBootloader: String = DEFAULT_BOOTLOADER
     private var originalRadio: String = DEFAULT_RADIO
     private var originalDevice: String = DEFAULT_DEVICE
-    private var originalOta: String = DEFAULT_OTA
+    private var originalOta: String = ""
     private var originalFingerprint: String = DEFAULT_FINGERPRINT
 
     // System properties to override
@@ -258,7 +257,7 @@ class DeviceInfoSpoofer(
     /**
      * Get the spoofed Build.VERSION.SDK_INT.
      */
-    fun getSdkInt(): Int = (customSdkInt ?: originalSdkInt)?.toInt() ?: Build.VERSION.SDK_INT
+    fun getSdkInt(): Int = (customSdkInt ?: Build.VERSION.SDK_INT).toInt()
 
     /**
      * Get the spoofed Build.VERSION.RELEASE.
@@ -510,14 +509,14 @@ class DeviceInfoSpoofer(
 
     private fun getOriginalImei(): String = try {
         val tm = context?.getSystemService(Context.TELEPHONY_SERVICE) as? TelephonyManager
-        tm?.ime
+        tm?.phoneNumber
     } catch (_: Exception) {
         DEFAULT_IMEI
     }
 
     private fun getOriginalDeviceId(): String = try {
         val tm = context?.getSystemService(Context.TELEPHONY_SERVICE) as? TelephonyManager
-        tm?.deviceId
+        (tm?.deviceId) ?: DEFAULT_DEVICE_ID
     } catch (_: Exception) {
         DEFAULT_DEVICE_ID
     }
@@ -528,10 +527,10 @@ class DeviceInfoSpoofer(
     private fun getOriginalBrand(): String = Build.BRAND
     private fun getOriginalModel(): String = Build.MODEL
     private fun getOriginalBoard(): String = Build.BOARD
-    private fun getOriginalBootloader(): String = Build.BOOTSLOADER
+    private fun getOriginalBootloader(): String = Build.BOARD
     private fun getOriginalRadio(): String = Build.RADIO
     private fun getOriginalDevice(): String = Build.DEVICE
-    private fun getOriginalOta(): String = Build.OTA
+    private fun getOriginalOta(): String = ""
     private fun getOriginalFingerprint(): String = Build.FINGERPRINT
     private fun getOriginalSdkInt(): String = Build.VERSION.SDK_INT.toString()
 

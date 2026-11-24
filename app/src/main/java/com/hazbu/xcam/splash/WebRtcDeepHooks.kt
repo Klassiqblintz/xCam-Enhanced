@@ -83,8 +83,8 @@ class WebRtcDeepHooks(
             val clazz = Class.forName("org.webrtc.Camera2Capturer")
             val constructor = clazz.declaredConstructors.firstOrNull { it.parameterCount == 2 }
             if (constructor != null) {
-                val instance = constructor.setAccessible(true)
-                return instance.newInstance(null, surface)
+                constructor.isAccessible = true
+                return constructor.newInstance(null, surface)
             }
         } catch (e: Exception) {
             logAction("$TAG: Failed to create fake Camera2Capturer: ${e.message}")

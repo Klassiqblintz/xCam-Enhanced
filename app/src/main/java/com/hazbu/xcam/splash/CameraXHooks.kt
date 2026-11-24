@@ -197,7 +197,7 @@ class CameraXHooks(
                             val planesField = imageObj.javaClass.getDeclaredField("planes")
                             planesField.isAccessible = true
                             val planes = planesField.get(imageObj) as Array<*>
-                            val firstPlane = planes[0]
+                            val firstPlane = planes[0] as Any as Any
                             val bufferField = firstPlane.javaClass.getDeclaredField("buffer")
                             bufferField.isAccessible = true
                             val buffer = bufferField.get(firstPlane) as java.nio.ByteBuffer
@@ -254,7 +254,7 @@ class CameraXHooks(
                             val planesField = imageObj.javaClass.getDeclaredField("planes")
                             planesField.isAccessible = true
                             val planes = planesField.get(imageObj) as Array<*>
-                            val firstPlane = planes[0]
+                            val firstPlane = planes[0] as Any
                             val bufferField = firstPlane.javaClass.getDeclaredField("buffer")
                             bufferField.isAccessible = true
                             val buffer = bufferField.get(firstPlane) as java.nio.ByteBuffer
