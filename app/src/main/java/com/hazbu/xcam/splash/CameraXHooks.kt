@@ -41,7 +41,7 @@ class CameraXHooks(
 
     // State
     private var isHooking = false
-    private var isCameraXAvailable = false
+    internal var isCameraXAvailable = false
     private var isCameraXLicensed = false
 
     // CameraX components

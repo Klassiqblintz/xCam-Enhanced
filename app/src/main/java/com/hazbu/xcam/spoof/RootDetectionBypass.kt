@@ -4,7 +4,6 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
-import android.os.Build
 import android.telephony.TelephonyManager
 import android.util.Log
 
@@ -403,7 +402,7 @@ class RootDetectionBypass(
      */
     private fun checkSelinuxEnabled(): Boolean {
         return try {
-            val value = Build.PROPERTY_SOTUS
+            val value = Build.BOARD
             value != "0"
         } catch (_: Exception) {
             true

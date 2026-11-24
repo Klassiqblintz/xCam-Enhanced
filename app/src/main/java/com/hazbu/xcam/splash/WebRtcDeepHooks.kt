@@ -34,7 +34,7 @@ class WebRtcDeepHooks(
 
     // State
     private var isHooking = false
-    private var isWebRtcAvailable = false
+    internal var isWebRtcAvailable = false
 
     // WebRTC components
     private var fakeVideoTrack: Any? = null

@@ -298,7 +298,7 @@ class XCamModule : XposedModule() {
     fun enableWebRtc() { webRtcHooks.enable() }
     fun disableWebRtc() { webRtcHooks.disable() }
     fun isWebRtcHooking(): Boolean = webRtcHooks.isHooking()
-    fun createFakeCapturer(surface: android.view.Surface?) = webRtcHooks.createFakeCapturer(surface)
+    fun createFakeCapturer(surface: android.view.Surface) = webRtcHooks.createFakeCapturer(surface)
     fun createFakeSurfaceTextureHelper() = webRtcHooks.createFakeSurfaceTextureHelper()
     fun hookCamera2CapturerStart(capturer: Any, callback: Any) { webRtcHooks.hookCamera2CapturerStart(capturer, callback) }
     fun createFakeVideoTrack(pc: Any, trackId: String) = webRtcHooks.createFakeVideoTrack(pc, trackId)

@@ -257,7 +257,7 @@ class DeviceInfoSpoofer(
     /**
      * Get the spoofed Build.VERSION.SDK_INT.
      */
-    fun getSdkInt(): Int = (customSdkInt ?: Build.VERSION.SDK_INT).toInt()
+    fun getSdkInt(): Int = (customSdkInt ?: Build.VERSION.SDK_INT)
 
     /**
      * Get the spoofed Build.VERSION.RELEASE.
@@ -509,7 +509,7 @@ class DeviceInfoSpoofer(
 
     private fun getOriginalImei(): String = try {
         val tm = context?.getSystemService(Context.TELEPHONY_SERVICE) as? TelephonyManager
-        tm?.phoneNumber
+        tm?.lineNumber
     } catch (_: Exception) {
         DEFAULT_IMEI
     }
