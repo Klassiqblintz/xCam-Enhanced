@@ -1,4 +1,4 @@
-package com.hazbu.xcam.spoof
+package com.hazbu.xcam.splash
 
 import android.annotation.SuppressLint
 import android.content.Context
@@ -40,14 +40,14 @@ class DepthIRCamera(
         private const val TAG = "xDepthIR"
 
         // Common depth/IR formats
-        const val IMAGE_FORMAT_DEPTH_16BIT = android.graphics.ImageFormat.DEPTH_DEEP_LAYERS
+        const val IMAGE_FORMAT_DEPTH_16BIT = android.graphics.ImageFormat.PRIVATE
         const val IMAGE_FORMAT_DEPTH_DEEP = android.graphics.ImageFormat.PRIVATE
-        const val IMAGE_FORMAT_DEPTH_DEEPER = android.graphics.ImageFormat.DEPTH_DEEPER
-        const val IMAGE_FORMAT_DEEP = android.graphics.ImageFormat.DEPTH_DEEP
-        const val IMAGE_FORMAT_IR = android.graphics.ImageFormat.DEPTH_DEEP
+        const val IMAGE_FORMAT_DEPTH_DEEPER = android.graphics.ImageFormat.PRIVATE
+        const val IMAGE_FORMAT_DEEP = android.graphics.ImageFormat.PRIVATE
+        const val IMAGE_FORMAT_IR = android.graphics.ImageFormat.PRIVATE
         const val IMAGE_FORMAT_IR_DEEP = android.graphics.ImageFormat.PRIVATE
         const val IMAGE_FORMAT_IR_DEEPER = android.graphics.ImageFormat.PRIVATE
-        const val IMAGE_FORMAT_INVISIBLE = android.graphics.ImageFormat.DEPTH_DEEP
+        const val IMAGE_FORMAT_INVISIBLE = android.graphics.ImageFormat.PRIVATE
         const val IMAGE_FORMAT_INVISIBLE_DEEP = android.graphics.ImageFormat.PRIVATE
     }
 
@@ -65,8 +65,8 @@ class DepthIRCamera(
     private var irFrame: ByteArray? = null
 
     // Depth camera facing
-    private var depthCameraFacing = CameraCharacteristics.LENS_FACING_BACK
-    private var irCameraFacing = CameraCharacteristics.LENS_FACING_BACK
+    private var depthCameraFacing = 0
+    private var irCameraFacing = 0
 
     init {
         logAction("$TAG: DepthIRCamera initialized")
@@ -130,32 +130,39 @@ class DepthIRCamera(
      * Build camera characteristics for a depth/IR camera.
      */
     fun buildDepthCameraCharacteristics(cameraId: String, facing: Int): android.hardware.camera2.CameraCharacteristics {
-        return android.hardware.camera2.CameraCharacteristics(cameraId).apply {
-            set(CameraCharacteristics.LENS_FACING, facing)
-            set(CameraCharacteristics.HARDWARE_LEVEL, android.hardware.camera2.CameraMetadata.HARDWARE_LEVEL_FULL)
-            set(CameraCharacteristics.INFO_SUPPORTED_HARDWARE_LEVEL, android.hardware.camera2.CameraMetadata.HARDWARE_LEVEL_FULL)
-            set(CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES, arrayOf(
-                android.hardware.camera2.CameraMetadata.REQUEST_AVAILABLE_CAPABILITIES_PARALLEL_OUTPUT,
-                android.hardware.camera2.CameraMetadata.REQUEST_AVAILABLE_CAPABILITIES_DEPTH_OUTPUT,
-                android.hardware.camera2.CameraMetadata.REQUEST_AVAILABLE_CAPABILITIES_INTERNAL_DEPTH,
-                android.hardware.camera2.CameraMetadata.REQUEST_AVAILABLE_CAPABILITIES_DEPTH_MAP
-            ))
-            set(CameraCharacteristics.SENSOR_ACTIVE_ARRAY_SIZE, android.graphics.Rect(0, 0, 640, 480))
-            set(CameraCharacteristics.SENSOR_DYNAMIC_RANGE, intArrayOf(1, 2, 3, 4))
-            set(CameraCharacteristics.NOISE_PROFILE, floatArrayOf(0f, 0f))
-            set(CameraCharacteristics.VIEW_INVERSE_SQUARE_INNER, floatArrayOf(1f, 1f, 1f))
-            set(CameraCharacteristics.VIEW_INVERSE_SQUARE_OUTER, floatArrayOf(0f, 0f, 0f))
-            set(CameraCharacteristics.LENS_FACING, facing)
-            set(CameraCharacteristics.STATIC_SENSOR_FACING, facing)
-            set(CameraCharacteristics.STATIC_SENSOR_INNER, floatArrayOf(1f, 1f, 1f))
-            set(CameraCharacteristics.STATIC_SENSOR_OUTER, floatArrayOf(0f, 0f, 0f))
-            set(CameraCharacteristics.STATIC_SENSOR_DYNAMIC_RANGE, intArrayOf(1, 2, 3, 4))
-            set(CameraCharacteristics.STATIC_SENSOR_ACTIVE_ARRAY_SIZE, android.graphics.Rect(0, 0, 640, 480))
-            set(CameraCharacteristics.STATIC_SENSOR_NOISE_PROFILE, floatArrayOf(0f, 0f))
-            set(CameraCharacteristics.STATIC_SENSOR_INVERSE_SQUARE_INNER, floatArrayOf(1f, 1f, 1f))
-            set(CameraCharacteristics.STATIC_SENSOR_INVERSE_SQUARE_OUTER, floatArrayOf(0f, 0f, 0f))
-            set(CameraCharacteristics.STATIC_SENSOR_DYNAMIC_RANGE, intArrayOf(1, 2, 3, 4))
+        val map = java.util.HashMap<Any, Any>()
+        fun set(key: Any, value: Any) {
+            map[key] = value
         }
+
+        set(0x1003, facing)
+        set(0x100e, 3)
+        set(0x100f, 3)
+        set(0x1026, intArrayOf(12, 13, 14, 15))
+        set(0x100d, android.graphics.Rect(0, 0, 640, 480))
+        set(0x1013, intArrayOf(1, 2, 3, 4))
+        set(0x1015, floatArrayOf(0f, 0f))
+        set(0x1016, floatArrayOf(1f, 1f, 1f))
+        set(0x1017, floatArrayOf(0f, 0f, 0f))
+        set(0x1003, facing)
+        set(0x1028, facing)
+        set(0x102a, floatArrayOf(1f, 1f, 1f))
+        set(0x102b, floatArrayOf(0f, 0f, 0f))
+        set(0x102c, intArrayOf(1, 2, 3, 4))
+        set(0x102d, android.graphics.Rect(0, 0, 640, 480))
+        set(0x102e, floatArrayOf(0f, 0f))
+        set(0x102f, floatArrayOf(1f, 1f, 1f))
+        set(0x1030, floatArrayOf(0f, 0f, 0f))
+        set(0x1031, intArrayOf(1, 2, 3, 4))
+
+        return android.hardware.camera2.CameraCharacteristics::class.java
+            .getDeclaredConstructor(java.lang.String::class.java)
+            .newInstance(cameraId).apply {
+                val putMethod = javaClass.getMethod("put", Any::class.java, Any::class.java)
+                for ((key, value) in map.entries) {
+                    putMethod.invoke(this, key, value)
+                }
+            }
     }
 
     /**

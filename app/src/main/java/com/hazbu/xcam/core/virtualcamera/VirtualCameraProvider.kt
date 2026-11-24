@@ -102,18 +102,13 @@ class VirtualCameraProvider(
         try {
             cameraManager?.let { cm ->
                 // Register as an external/USB camera via reflection
-                val virtualCameraDeviceClass = Class.forName(
-                    "com.hazbu.xcam.core.virtualcamera.RegistrableCameraDevice"
-                )
-
-                val virtualCameraDeviceImpl = object :
-                    CameraManager.VirtualCameraDevice {
-
-                    override fun getCharacteristics(): CameraCharacteristics {
+                val virtCamDeviceImpl = object {
+                    fun getCharacteristics(): Any {
                         return buildCameraCharacteristics()
                     }
 
-                    override fun createDevice(): CameraDevice {
+                    @Suppress("UNCHECKED_CAST")
+                    fun createDevice(): Any {
                         return VirtualCameraDevice(
                             VIRTUAL_CAMERA_ID,
                             VIRTUAL_CAMERA_FACING,
@@ -121,21 +116,22 @@ class VirtualCameraProvider(
                             eglRenderer,
                             { msg -> logAction("$TAG: $msg") },
                             cameraHandler
-                        ) as CameraDevice
+                        ) as android.hardware.camera2.CameraDevice
                     }
 
-                    override fun getPhysicalCameraDeviceIds(): Array<String> {
+                    fun getPhysicalCameraDeviceIds(): Array<String> {
                         return emptyArray()
                     }
                 }
 
+                val virtCamDeviceClass = Class.forName("android.hardware.camera2.CameraManager\$VirtualCameraDevice")
                 val registerMethod = cm.javaClass.getMethod(
                     "registerVirtualCamera",
                     java.lang.String::class.java,
                     java.lang.Integer::class.java,
-                    Class.forName("android.hardware.camera2.CameraManager\$VirtualCameraDevice")
+                    virtCamDeviceClass
                 )
-                registerMethod.invoke(cm, VIRTUAL_CAMERA_ID, VIRTUAL_CAMERA_FACING, virtualCameraDeviceImpl)
+                registerMethod.invoke(cm, VIRTUAL_CAMERA_ID, VIRTUAL_CAMERA_FACING, virtCamDeviceImpl)
 
                 isRegistered = true
                 isExternalCameraRegistered = true
@@ -284,7 +280,7 @@ class VirtualCameraProvider(
             java.lang.String::class.java
         ).newInstance(VIRTUAL_CAMERA_ID).apply {
             val putMethod = javaClass.getMethod("put", Any::class.java, Any::class.java)
-            map.forEach { (key, value) ->
+            for ((key, value) in map.entries) {
                 putMethod.invoke(this, key, value)
             }
         }

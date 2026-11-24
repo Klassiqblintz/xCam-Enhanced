@@ -45,9 +45,9 @@ class CameraXHooks(
     private var isCameraXLicensed = false
 
     // CameraX components
-    private var previewBuilder: Preview.Builder? = null
-    private var imageCaptureBuilder: ImageCapture.Builder? = null
-    private var imageAnalysisBuilder: ImageAnalysis.Builder? = null
+    private var previewBuilder: Any? = null
+    private var imageCaptureBuilder: Any? = null
+    private var imageAnalysisBuilder: Any? = null
 
     // Frame processor (for ImageAnalysis)
     private var onFrameCallback: ((Any) -> Unit)? = null
@@ -66,7 +66,14 @@ class CameraXHooks(
     private var currentHeight = 720
 
     // Handler for CameraX operations
-    private val handler = Handler(ContextCompat.getMainExecutor(context) as? java.util.concurrent.Executor ?: java.util.concurrent.Executors.newSingleThreadExecutor())
+    private val handler: Handler = try {
+        val mainLooper = Class.forName("android.os.Looper")
+            .getMethod("getMainLooper")
+            .invoke(null) as? android.os.Looper
+        if (mainLooper != null) Handler(mainLooper) else Handler()
+    } catch (_: Exception) {
+        Handler()
+    }
 
     // EGL renderer reference (for frame transformation)
     private var eglRenderer: com.hazbu.xcam.core.virtualcamera.EglFrameRenderer? = null
@@ -141,11 +148,8 @@ class CameraXHooks(
 
     // ==================== CAMERA BUILDER OVERRIDES ====================
 
-    /**
-     * Override the Preview builder to inject a virtual surface.
-     */
     @Suppress("UNCHECKED_CAST")
-    fun createPreviewBuilder(): Any {
+    fun createPreviewBuilder(): Any? {
         logAction("$TAG: Preview builder created")
         return null
     }
@@ -154,7 +158,7 @@ class CameraXHooks(
      * Override the ImageCapture builder for still captures.
      */
     @Suppress("UNCHECKED_CAST")
-    fun createImageCaptureBuilder(): Any {
+    fun createImageCaptureBuilder(): Any? {
         logAction("$TAG: ImageCapture builder created")
         return null
     }
@@ -163,7 +167,7 @@ class CameraXHooks(
      * Override the ImageAnalysis builder for liveness detection.
      */
     @Suppress("UNCHECKED_CAST")
-    fun createImageAnalysisBuilder(): Any {
+    fun createImageAnalysisBuilder(): Any? {
         logAction("$TAG: ImageAnalysis builder created")
         return null
     }
@@ -180,42 +184,46 @@ class CameraXHooks(
             fun analyze(imageProxy: Any) {
                 if (!isHooking) return
 
-                // Call the custom callback if set
                 onFrameCallback?.invoke(imageProxy)
 
-                // Process the frame (replace with virtual camera frame)
-                val imageClass = imageProxy.javaClass
-                val imageField = imageClass.getDeclaredField("image")
-                imageField.isAccessible = true
-                val image = imageField.get(imageProxy)
-                if (image != null) {
-                    val planesField = image.javaClass.getDeclaredField("planes")
-                    planesField.isAccessible = true
-                    val planes = planesField.get(image) as Array<*>
-                    val firstPlane = planes[0]
-                    val bufferField = firstPlane.javaClass.getDeclaredField("buffer")
-                    bufferField.isAccessible = true
-                    val buffer = bufferField.get(firstPlane) as ByteBuffer
-                    val widthField = image.javaClass.getDeclaredField("width")
-                    widthField.isAccessible = true
-                    val width = widthField.get(image) as Int
-                    val heightField = image.javaClass.getDeclaredField("height")
-                    heightField.isAccessible = true
-                    val height = heightField.get(image) as Int
+                val renderer = eglRenderer
+                if (renderer != null) {
+                    try {
+                        val imageClass = imageProxy.javaClass
+                        val imageField = imageClass.getDeclaredField("image")
+                        imageField.isAccessible = true
+                        val imageObj = imageField.get(imageProxy)
+                        if (imageObj != null) {
+                            val planesField = imageObj.javaClass.getDeclaredField("planes")
+                            planesField.isAccessible = true
+                            val planes = planesField.get(imageObj) as Array<*>
+                            val firstPlane = planes[0]
+                            val bufferField = firstPlane.javaClass.getDeclaredField("buffer")
+                            bufferField.isAccessible = true
+                            val buffer = bufferField.get(firstPlane) as java.nio.ByteBuffer
+                            val widthField = imageObj.javaClass.getDeclaredField("width")
+                            widthField.isAccessible = true
+                            val width = widthField.get(imageObj) as Int
+                            val heightField = imageObj.javaClass.getDeclaredField("height")
+                            heightField.isAccessible = true
+                            val height = heightField.get(imageObj) as Int
 
-                    // If EGL renderer is set, render the virtual camera frame
-                    val renderer = eglRenderer
-                    if (renderer != null) {
-                        try {
-                            val nv21 = renderer.renderYuvFrame(buffer, width, height)
+                            val yPlane = ByteArray(buffer.remaining())
+                            val uPlane = ByteArray((buffer.remaining() / 4).coerceAtLeast(1))
+                            val vPlane = ByteArray((buffer.remaining() / 4).coerceAtLeast(1))
+                            buffer.clear()
+                            buffer.get(yPlane)
+
+                            val nv21 = renderer.renderYuvFrame(yPlane, uPlane, vPlane, width, height)
                             if (nv21 != null) {
-                                buffer.clear()
-                                buffer.put(nv21)
-                                buffer.flip()
+                                val outBuffer = bufferField.get(firstPlane) as java.nio.ByteBuffer
+                                outBuffer.clear()
+                                outBuffer.put(nv21)
+                                outBuffer.flip()
                             }
-                        } catch (e: Exception) {
-                            logAction("$TAG: Frame processing failed: ${e.message}")
                         }
+                    } catch (e: Exception) {
+                        logAction("$TAG: Frame processing failed: ${e.message}")
                     }
                 }
             }
@@ -249,7 +257,7 @@ class CameraXHooks(
                             val firstPlane = planes[0]
                             val bufferField = firstPlane.javaClass.getDeclaredField("buffer")
                             bufferField.isAccessible = true
-                            val buffer = bufferField.get(firstPlane) as ByteBuffer
+                            val buffer = bufferField.get(firstPlane) as java.nio.ByteBuffer
                             val widthField = imageObj.javaClass.getDeclaredField("width")
                             widthField.isAccessible = true
                             val width = widthField.get(imageObj) as Int
@@ -257,11 +265,18 @@ class CameraXHooks(
                             heightField.isAccessible = true
                             val height = heightField.get(imageObj) as Int
 
-                            val jpeg = renderer.toJpeg(buffer, width, height)
+                            val yPlane = ByteArray(buffer.remaining())
+                            val uPlane = ByteArray((buffer.remaining() / 4).coerceAtLeast(1))
+                            val vPlane = ByteArray((buffer.remaining() / 4).coerceAtLeast(1))
+                            buffer.clear()
+                            buffer.get(yPlane)
+
+                            val jpeg = renderer.toJpeg(yPlane, uPlane, vPlane, width, height)
                             if (jpeg != null) {
-                                buffer.clear()
-                                buffer.put(jpeg)
-                                buffer.flip()
+                                val outBuffer = bufferField.get(firstPlane) as java.nio.ByteBuffer
+                                outBuffer.clear()
+                                outBuffer.put(jpeg)
+                                outBuffer.flip()
                             }
                         }
                     }

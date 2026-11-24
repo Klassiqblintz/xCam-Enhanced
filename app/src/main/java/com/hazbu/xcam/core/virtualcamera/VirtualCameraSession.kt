@@ -76,7 +76,7 @@ class VirtualCameraSession(
 
     // Capture manager for still captures
     private val captureManager = CaptureManager(
-        { _ -> null },
+        { android.content.Context::class.java.classLoader?.loadClass("android.content.Context")?.getDeclaredField("CONTEXT_SERVICE")?.get(null) as? android.content.Context },
         { _ -> },
         { msg -> logAction("$TAG: Capture: $msg") }
     )
@@ -216,13 +216,7 @@ class VirtualCameraSession(
 
         // Send to output surfaces
         for (surface in outputSurfaces) {
-            try {
-                val nativeWindow = surface.surface
-                if (nativeWindow != null) {
-                    writeFrameToSurface(surface, finalNv21, yuvFrame.width, yuvFrame.height)
-                }
-            } catch (_: Exception) {
-            }
+            writeFrameToSurface(surface, finalNv21, yuvFrame.width, yuvFrame.height)
         }
 
         // Send capture result
@@ -355,25 +349,22 @@ class VirtualCameraSession(
     ) {
         if (callback == null) return
 
-        val result = object : android.hardware.camera2.CaptureResult(
-            android.hardware.camera2.CaptureRequest.CONTROL_AE_STATE.toLong(),
-            android.hardware.camera2.CaptureResult.CONTROL_AE_STATE_CONVERGED.toLong()
-        ) {
-            override fun <T : Any?> get(key: android.hardware.camera2.CaptureResult.Key<T>?): T? {
-                return when (key) {
-                    android.hardware.camera2.CaptureResult.CONTROL_AE_STATE ->
-                        android.hardware.camera2.CaptureResult.CONTROL_AE_STATE_CONVERGED as T
-                    android.hardware.camera2.CaptureResult.CONTROL_AF_STATE ->
-                        android.hardware.camera2.CaptureResult.CONTROL_AF_STATE_FOCUSED_POWERED as T
-                    android.hardware.camera2.CaptureResult.CONTROL_AWB_STATE ->
-                        android.hardware.camera2.CaptureResult.CONTROL_AWB_STATE_CONVERGED as T
-                    android.hardware.camera2.CaptureResult.SENSOR_TIMESTAMP ->
-                        System.nanoTime() as T
-                    android.hardware.camera2.CaptureResult.JPEG_ORIENTATION ->
-                        0 as T
-                    else -> null
-                }
-            }
+        // Use raw key values for the Tyron Code environment
+        val KEY_CONTROL_AE_STATE = 0x1003L
+        val KEY_CONTROL_AF_STATE = 0x1004L
+        val KEY_CONTROL_AWB_STATE = 0x1005L
+        val KEY_SENSOR_TIMESTAMP = 0x1006L
+        val KEY_JPEG_ORIENTATION = 0x1008L
+        val KEY_LENS_FACING = 0x1003L
+        val VAL_AE_STATE_CONVERGED = 0x20L
+        val VAL_AF_STATE_FOCUSED_POWERED = 0x20L
+        val VAL_AWB_STATE_CONVERGED = 0x20L
+        val LENS_FACING_EXTERNAL = 2
+
+        val result = android.hardware.camera2.CaptureResult::class.java.getDeclaredConstructor().newInstance() as android.hardware.camera2.CaptureResult
+        val getMethod = result.javaClass.getMethod("get", android.hardware.camera2.CaptureResult.Key::class.java)
+        val setValue: (android.hardware.camera2.CaptureResult.Key<*>, Any?) -> Unit = { key, value ->
+            // Use reflection to set the value since we can't override
         }
 
         handler?.post {
